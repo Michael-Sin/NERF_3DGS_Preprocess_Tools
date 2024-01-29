@@ -31,11 +31,11 @@ def quaternion_to_rotation_matrix(qx, qy, qz, qw):
     return rotation_matrix
 
 
-def rotation_matrix_to_quaternion(transform_matrix):
-    t = np.matrix.trace(transform_matrix)
-    m = transform_matrix[0:3, 0:3]
+def rotation_matrix_to_quaternion(m):
+    # q = [x, y, z, w]
+    t = np.matrix.trace(m)
     q = np.asarray([0.0, 0.0, 0.0, 0.0], dtype=np.float64)
-    # q = [qw, qx, qy, qz]
+
     if(t > 0):
         t = np.sqrt(t + 1)
         q[3] = 0.5 * t
@@ -43,8 +43,8 @@ def rotation_matrix_to_quaternion(transform_matrix):
         q[0] = (m[2,1] - m[1,2]) * t
         q[1] = (m[0,2] - m[2,0]) * t
         q[2] = (m[1,0] - m[0,1]) * t
+
     else:
-        #print(transform_matrix)
         i = 0
         if (m[1,1] > m[0,0]):
             i = 1
@@ -52,14 +52,15 @@ def rotation_matrix_to_quaternion(transform_matrix):
             i = 2
         j = (i+1)%3
         k = (j+1)%3
+
         t = np.sqrt(m[i,i] - m[j,j] - m[k,k] + 1)
         q[i] = 0.5 * t
         t = 0.5 / t
         q[3] = (m[k,j] - m[j,k]) * t
         q[j] = (m[j,i] + m[i,j]) * t
         q[k] = (m[k,i] + m[i,k]) * t
-    return q
 
+    return q
 
 
 def motion_blur(ori_path, direction, kernel_size):
@@ -150,17 +151,18 @@ def images_ipad2colmap(ori_path, out_path):
             tvec = np.array(elems[2:5],dtype=float)
             qw = np.array(elems[8],dtype=float)
             qvec = np.array(elems[5:8],dtype=float)
-            image_name = str(elems[1])+".jpg"
+            image_name = str(elems[1])+".png"
             c2w_matrix = np.array(create_transform_matrix(tvec,qvec,qw))
             inv_c2w_matrix = np.linalg.inv(c2w_matrix)
 
-            # w2c_qvec = [qw, qx, qy, qz]
-            w2c_qvec = rotation_matrix_to_quaternion(inv_c2w_matrix)
+            # w2c_qvec = [qx, qy, qz, qw]
+            w2c_qvec = rotation_matrix_to_quaternion(inv_c2w_matrix[0:3,0:3])
+            w2c_tvec = inv_c2w_matrix[0:3,3]
 
             # IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME
-            in_str = [str(IMAGE_ID)," ",str(w2c_qvec.item(0))," ",\
-                      str(w2c_qvec.item(1))," ",str(w2c_qvec.item(2))," ",str(w2c_qvec.item(3))," ",\
-                      str(tvec[0])," ",str(tvec[1])," ",str(tvec[2])," ","1 ",image_name,"\n","1 1 -1\n"]
+            in_str = [str(IMAGE_ID)," ",str(w2c_qvec.item(3))," ",\
+                      str(w2c_qvec.item(0))," ",str(w2c_qvec.item(1))," ",str(w2c_qvec.item(2))," ",\
+                      str(w2c_tvec[0])," ",str(w2c_tvec[1])," ",str(w2c_tvec[2])," ","1 ",image_name,"\n","1 1 -1\n"]
             
             gn_file.writelines(in_str)
             IMAGE_ID += 1
